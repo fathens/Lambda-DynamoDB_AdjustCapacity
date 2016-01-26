@@ -8,6 +8,8 @@ import math
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+logger.info("Version 1.0.0")
+
 def lambda_handler(event, context):
     logger.info("Event: " + str(event))
     message = json.loads(event['Records'][0]['Sns']['Message'])
