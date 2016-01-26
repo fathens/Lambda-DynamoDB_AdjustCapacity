@@ -32,9 +32,8 @@ def lambda_handler(event, context):
         def enhance(src):
             provision = int(math.ceil(src * 1.2))
 
-            cloudwatch = boto3.resource('cloudwatch')
-            alarm = cloudwatch.Alarm(message['AlarmName'])
-            cloudwatch.put_metric_alarm(AlarmName=alarm.name,
+            alarm = boto3.resource('cloudwatch').Alarm(message['AlarmName'])
+            boto3.client('cloudwatch').put_metric_alarm(AlarmName=alarm.name,
                                         Threshold=(dst * 0.8 * 60))
 
             return provision
