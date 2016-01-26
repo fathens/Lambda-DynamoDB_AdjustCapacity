@@ -26,14 +26,18 @@ def lambda_handler(event, context):
             list = message['Trigger']['Dimensions']
             return next(iter(map(lambda x: x['value'], filter(lambda x: x['name'] == name, list))), None)
 
-        dynamodb = boto3.resource('dynamodb')
-        table = dynamodb.Table(dimension('TableName'))
+        table = boto3.resource('dynamodb').Table(dimension('TableName'))
         indexName = dimension('GlobalSecondaryIndexName')
 
         def enhance(src):
-            dst = int(math.ceil(src * 1.2))
-            logger.info("Enhance %s(%s) Throughput['%s']: %s => %s" % (table.name, indexName, metricKey, src, dst))
-            return dst
+            provision = int(math.ceil(src * 1.2))
+
+            cloudwatch = boto3.resource('cloudwatch')
+            alarm = cloudwatch.Alarm(message['AlarmName'])
+            cloudwatch.put_metric_alarm(AlarmName=alarm.name,
+                                        Threshold=(dst * 0.8 * 60))
+
+            return provision
 
         def updateThroughput(throughput):
             map = {}
