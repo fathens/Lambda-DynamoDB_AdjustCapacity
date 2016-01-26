@@ -1,0 +1,5 @@
+install:
+  - sudo easy_install pip && sudo pip install awscli
+script:
+  - zip main.zip main.py
+  - aws lambda update-function-code --function-name DynamoDB_EnhanceCapacity --zip-file main.zip --publish
