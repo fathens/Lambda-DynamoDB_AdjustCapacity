@@ -1,5 +1,15 @@
+env:
+  global:
+    - FUNC_NAME='DynamoDB_EnhanceCapacity'
+
 install:
   - sudo easy_install pip && sudo pip install awscli
+
 script:
+  - if [ "$TRAVIS_BRANCH" == 'master' ]; then ALIAS='Production'; else ALIAS='Beta'; fi
+  - PRE=$(aws lambda get-alias --function-name $FUNC_NAME --name $ALIAS | ruby -e 'require "json"; puts JSON.load($stdin)["FunctionVersion"]')
   - zip main.zip main.py
-  - aws lambda update-function-code --function-name DynamoDB_EnhanceCapacity --zip-file main.zip --publish
+  - aws lambda update-function-code --function-name $FUNC_NAME --zip-file fileb://main.zip --publish > result
+  - VERSION=$(ruby -e 'require "json"; puts JSON.load(open("result"))["Version"]')
+  - aws lambda update-alias --function-name $FUNC_NAME -name $ALIAS --function-version $VERSION
+  - aws lambda update-alias --function-name $FUNC_NAME -name "${ALIAS}_pre" --function-version $PRE
