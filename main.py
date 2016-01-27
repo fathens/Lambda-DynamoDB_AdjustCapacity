@@ -8,7 +8,7 @@ import math
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-logger.info("Version 1.1.0")
+logger.info("Version 1.1.1")
 
 def lambda_handler(event, context):
     logger.info("Event: " + str(event))
