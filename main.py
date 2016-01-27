@@ -16,6 +16,11 @@ cloudwatch = boto3.client('cloudwatch')
 surplusRate = 1.2
 thresholdRate = {'Upper': 0.8, 'Lower': 0.5}
 
+metricKeys = {
+    'ConsumedReadCapacityUnits': 'ReadCapacityUnits',
+    'ConsumedWriteCapacityUnits': 'WriteCapacityUnits'
+}
+
 def lambda_handler(event, context):
     logger.info("Event: " + str(event))
     message = Message(event['Records'][0]['Sns']['Message'])
@@ -23,7 +28,7 @@ def lambda_handler(event, context):
 
     metrics = Metrics(message)
 
-    provision = int(math.ceil(metrics.getAvarage() * surplusRate))
+    provision = int(math.ceil(metrics.getAverage() * surplusRate))
 
     Table(message.getTableName(), message.getIndexName()).update(metrics.key, provision)
 
@@ -32,11 +37,10 @@ def lambda_handler(event, context):
 
 class Message:
     def __init__(self, text):
-        self.text = text
         self.src = json.loads(text)
 
     def __str__(self):
-        return text
+        return json.dumps(self.src, indent=4)
 
     def getMetricName(self):
         return self.src['Trigger']['MetricName']
@@ -52,7 +56,7 @@ class Message:
         return next(iter(map(lambda x: x['value'], found)), None)
 
     def getTableName(self):
-        return self.dimention('TableName')
+        return self.dimension('TableName')
 
     def getIndexName(self):
         return self.dimension('GlobalSecondaryIndexName')
@@ -72,20 +76,23 @@ class Metrics:
         delta = timedelta(hours=1)
         startTime = endTime - delta
 
+        def fixDim(x):
+            map = {}
+            for key, value in x.items():
+                map[key.capitalize()] = value
+            return map
+
         self.statistics = cloudwatch.get_metric_statistics(
             Namespace=self.message.getNamespace(),
             MetricName=self.message.getMetricName(),
-            Dimensions=self.message.getDimensions(),
+            Dimensions=map(fixDim, self.message.getDimensions()),
             Statistics=['Average', 'Maximum'],
             StartTime=startTime,
             EndTime=endTime,
             Period=delta.seconds
         )
 
-        self.key = {
-            'ConsumedReadCapacityUnits': 'ReadCapacityUnits',
-            'ConsumedWriteCapacityUnits': 'WriteCapacityUnits'
-        }[message.getMetricName()]
+        self.key = metricKeys[message.getMetricName()]
 
     def getValue(self, key):
         logger.info("Current Metrics: " + str(self.statistics))
@@ -101,10 +108,10 @@ class Table:
     def __init__(self, tableName, indexName):
         self.tableName = tableName
         self.indexName = indexName
-        self.src = boto3.resource('dynamodb').Table(message.getTableName())
+        self.src = boto3.resource('dynamodb').Table(tableName)
 
     def update(self, metricKey, provision):
-        logger.info("Updating provision %s(%s) %s: %s" % s (self.tableName, self.indexName, metricKey, provision))
+        logger.info("Updating provision %s(%s) %s: %s" % (self.tableName, self.indexName, metricKey, provision))
 
         def updateThroughput(src):
             map = {}
