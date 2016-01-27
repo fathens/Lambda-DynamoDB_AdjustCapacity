@@ -4,7 +4,7 @@ branches:
 
 env:
   global:
-    - FUNC_NAME='DynamoDB_EnhanceCapacity'
+    - FUNC_NAME='DynamoDB_AdjustCapacity'
     - ALIAS=$(if [ "$TRAVIS_BRANCH" == 'master' ]; then echo Production; else echo Beta; fi)
 
 install:
