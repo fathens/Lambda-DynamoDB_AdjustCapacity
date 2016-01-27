@@ -14,8 +14,7 @@ logger.info("Version 1.1.1")
 cloudwatch = boto3.client('cloudwatch')
 
 surplusRate = 1.2
-upperThresholdRate = 0.8
-lowerThresholdRate = 0.5
+thresholdRate = {'Upper': 0.8, 'Lower': 0.5}
 
 def lambda_handler(event, context):
     logger.info("Event: " + str(event))
@@ -24,32 +23,12 @@ def lambda_handler(event, context):
 
     metrics = Metrics(message)
 
-    provision = metrics.getAvarage() * surplusRate
+    provision = int(math.ceil(metrics.getAvarage() * surplusRate))
 
-    def updateThroughput(src):
-        map = {}
-        for name in metricKeys.values():
-            map[name] = src[name]
+    Table(message.getTableName(), message.getIndexName()).update(provision)
 
-        map[metric.key] = provision
-        return map
-
-    table = boto3.resource('dynamodb').Table(message.getTableName())
-
-    if message.getIndexName() == None:
-        table.update(ProvisionedThroughput=updateThroughput(table.provisioned_throughput))
-    else:
-        index = next(iter(filter(lambda x: x['IndexName'] == message.getIndexName(), table.global_secondary_indexes)), None)
-        if index == None:
-            raise Exception('No index: ' + indexName)
-        update = {
-            'IndexName': indexName,
-            'ProvisionedThroughput': updateThroughput(index['ProvisionedThroughput'])
-        }
-        table.update(GlobalSecondaryIndexUpdates=[{'Update': update}])
-
-    Alarm(message.getUpperAlarmName()).updateThreshold(upperThresholdRate, provision)
-    Alarm(message.getLowerAlarmName()).updateThreshold(lowerThresholdRate, provision)
+    for key, rate in thresholdRate:
+        Alarm(message.makeAlarmName(key)).updateThreshold(rate, provision)
 
 class Message:
     def __init__(self, text):
@@ -85,12 +64,6 @@ class Message:
         list = [self.getTableName(), self.getIndexName(), self.getMetricName(), key]
         return "-".join(filter(lambda x: x != None, list))
 
-    def getUpperAlarmName(self):
-        return makeAlarmName('Upper')
-
-    def getLowerAlarmName(self):
-        return makeAlarmName('Lower')
-
 class Metrics:
     def __init__(self, message):
         self.message = message
@@ -115,13 +88,41 @@ class Metrics:
         }[message.getMetricName()]
 
     def getValue(self, key):
-        return next(iter(map(lambda x: x[key], self.statistics['Datapoints'])), 1.0)
+        return next(iter(map(lambda x: x[key], self.statistics['Datapoints'])), 0.1)
 
     def getAverage(self):
         return self.getValue('Average')
 
     def getMaximum(self):
         return self.getValue('Maximum')
+
+class Table:
+    def __init__(self, tableName, indexName):
+        self.tableName = tableName
+        self.indexName = indexName
+        self.src = boto3.resource('dynamodb').Table(message.getTableName())
+
+    def update(self, provision):
+        def updateThroughput(src):
+            map = {}
+            for name in metricKeys.values():
+                map[name] = src[name]
+
+            map[metric.key] = provision
+            return map
+
+        if self.indexName == None:
+            self.src.update(ProvisionedThroughput=updateThroughput(self.src.provisioned_throughput))
+        else:
+            index = next(iter(filter(lambda x: x['IndexName'] == self.indexName, self.src.global_secondary_indexes)), None)
+            if index == None:
+                raise Exception('No index: ' + indexName)
+            update = {
+                'IndexName': indexName,
+                'ProvisionedThroughput': updateThroughput(index['ProvisionedThroughput'])
+            }
+            self.src.update(GlobalSecondaryIndexUpdates=[{'Update': update}])
+
 
 class Alarm:
     def __init__(self, name):
