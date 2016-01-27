@@ -25,7 +25,7 @@ def lambda_handler(event, context):
 
     provision = int(math.ceil(metrics.getAvarage() * surplusRate))
 
-    Table(message.getTableName(), message.getIndexName()).update(metric.key, provision)
+    Table(message.getTableName(), message.getIndexName()).update(metrics.key, provision)
 
     for key, rate in thresholdRate:
         Alarm(message.makeAlarmName(key)).updateThreshold(rate, provision)
