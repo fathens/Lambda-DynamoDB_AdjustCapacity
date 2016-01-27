@@ -66,7 +66,7 @@ class Message:
 
     def makeAlarmName(self, key):
         list = [self.getTableName(), self.getIndexName(), self.getMetricName(), key]
-        return "-".join(filter(lambda x: x != None, list))
+        return "-".join(filter(lambda x: x != None, list)).replace('.', '-')
 
 class Metrics:
     def __init__(self, message):
