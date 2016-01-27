@@ -1,3 +1,7 @@
+branches:
+  except:
+    - /^[0-9]/
+
 env:
   global:
     - FUNC_NAME='DynamoDB_EnhanceCapacity'
