@@ -28,7 +28,7 @@ def lambda_handler(event, context):
     Table(message.getTableName(), message.getIndexName()).update(metrics.key, provision)
 
     for key, rate in thresholdRate:
-        Alarm(message.makeAlarmName(key)).updateThreshold(rate, provision)
+        Alarm(message.makeAlarmName(key)).update(rate, provision)
 
 class Message:
     def __init__(self, text):
@@ -73,9 +73,9 @@ class Metrics:
         startTime = endTime - delta
 
         self.statistics = cloudwatch.get_metric_statistics(
-            Namespace=message.getNamespace(),
-            MetricName=message.getMetricName(),
-            Dimensions=message.getDimensions(),
+            Namespace=self.message.getNamespace(),
+            MetricName=self.message.getMetricName(),
+            Dimensions=self.message.getDimensions(),
             Statistics=['Average', 'Maximum'],
             StartTime=startTime,
             EndTime=endTime,
@@ -88,6 +88,7 @@ class Metrics:
         }[message.getMetricName()]
 
     def getValue(self, key):
+        logger.info("Current Metrics: " + str(self.statistics))
         return next(iter(map(lambda x: x[key], self.statistics['Datapoints'])), 0.1)
 
     def getAverage(self):
@@ -103,6 +104,8 @@ class Table:
         self.src = boto3.resource('dynamodb').Table(message.getTableName())
 
     def update(self, metricKey, provision):
+        logger.info("Updating provision %s(%s) %s: %s" % s (self.tableName, self.indexName, metricKey, provision))
+
         def updateThroughput(src):
             map = {}
             for name in metricKeys.values():
@@ -126,12 +129,14 @@ class Table:
 
 class Alarm:
     def __init__(self, name):
+        self.name = name
         alarms = cloudwatch.describe_alarms(AlarmNames=[name])
         self.src = alarms['MetricAlarms'][0]
 
-    def updateThreshold(self, rate, provision):
+    def update(self, rate, provision):
         period = self.src['Period']
         value = provision * rate * period
+        logger.info("Updating threshold %s: %s" % (self.name, value))
 
         cloudwatch.put_metric_alarm(
             AlarmName=self.src['AlarmName'],
