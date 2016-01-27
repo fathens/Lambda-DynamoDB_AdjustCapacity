@@ -25,7 +25,7 @@ def lambda_handler(event, context):
 
     provision = int(math.ceil(metrics.getAvarage() * surplusRate))
 
-    Table(message.getTableName(), message.getIndexName()).update(provision)
+    Table(message.getTableName(), message.getIndexName()).update(metric.key, provision)
 
     for key, rate in thresholdRate:
         Alarm(message.makeAlarmName(key)).updateThreshold(rate, provision)
@@ -102,13 +102,13 @@ class Table:
         self.indexName = indexName
         self.src = boto3.resource('dynamodb').Table(message.getTableName())
 
-    def update(self, provision):
+    def update(self, metricKey, provision):
         def updateThroughput(src):
             map = {}
             for name in metricKeys.values():
                 map[name] = src[name]
 
-            map[metric.key] = provision
+            map[metricKey] = provision
             return map
 
         if self.indexName == None:
