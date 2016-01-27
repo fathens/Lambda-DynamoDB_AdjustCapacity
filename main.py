@@ -29,37 +29,59 @@ def lambda_handler(event, context):
         table = boto3.resource('dynamodb').Table(dimension('TableName'))
         indexName = dimension('GlobalSecondaryIndexName')
 
-        throughput = {}
-        def updateThroughput(src):
-            for name in metricKeys.values():
-                throughput[name] = src[name]
+        def updateAlarm(provision):
+            cloudwatch = boto3.client('cloudwatch')
+            alarms = cloudwatch.describe_alarms(AlarmNames=[message['AlarmName']])
+            alarm = alarms['MetricAlarms'][0]
 
-            throughput[metricKey] = int(math.ceil(throughput[metricKey] * 1.2))
+            threshold = provision.getThreshold(alarm['Threshold'])
+
+            cloudwatch.put_metric_alarm(AlarmName=alarm['AlarmName'],
+                                        ActionsEnabled=alarm['ActionsEnabled'],
+                                        MetricName=alarm['MetricName'],
+                                        Namespace=alarm['Namespace'],
+                                        Dimensions=alarm['Dimensions'],
+                                        Statistic=alarm['Statistic'],
+                                        OKActions=alarm['OKActions'],
+                                        AlarmActions=alarm['AlarmActions'],
+                                        InsufficientDataActions=alarm['InsufficientDataActions'],
+                                        Period=alarm['Period'],
+                                        EvaluationPeriods=alarm['EvaluationPeriods'],
+                                        ComparisonOperator=alarm['ComparisonOperator'],
+                                        Threshold=threshold)
+
+        provision = Provision()
+        def updateThroughput(src):
+            map = {}
+            for name in metricKeys.values():
+                map[name] = src[name]
+
+            provision.preValue = map[metricKey]
+            map[metricKey] = provision.getValue()
             return map
 
         if indexName == None:
-            updateThroughput(table.provisioned_throughput)
-            table.update(ProvisionedThroughput=throughput)
+            table.update(ProvisionedThroughput=updateThroughput(table.provisioned_throughput))
         else:
             index = next(iter(filter(lambda x: x['IndexName'] == indexName, table.global_secondary_indexes)), None)
             if index == None:
                 raise Exception('No index: ' + indexName)
-            updateThroughput(index['ProvisionedThroughput'])
             update = {
                 'IndexName': indexName,
-                'ProvisionedThroughput': throughput
+                'ProvisionedThroughput': updateThroughput(index['ProvisionedThroughput'])
             }
             table.update(GlobalSecondaryIndexUpdates=[{'Update': update}])
 
-        cloudwatch = boto3.client('cloudwatch')
-        alarms = cloudwatch.describe_alarms(AlarmNames=[message['AlarmName']])
-        logger.info("List of alarms: " + str(alarms))
-        alarm = alarms['MetricAlarms'][0]
-        cloudwatch.put_metric_alarm(AlarmName=alarm['AlarmName'],
-                                    MetricName=alarm['MetricName'],
-                                    Namespace=alarm['Namespace'],
-                                    Statistic=alarm['Statistic'],
-                                    Period=alarm['Period'],
-                                    EvaluationPeriods=alarm['EvaluationPeriods'],
-                                    ComparisonOperator=alarm['ComparisonOperator'],
-                                    Threshold=(throughput[metricKey] * 0.8 * 60))
+        updateAlarm(provision)
+
+class Provision:
+    def __init__(self):
+        self.preValue = 0
+
+    def getValue(self):
+        return int(math.ceil(self.preValue * 1.2))
+
+    def getThreshold(self, current):
+        result = current * (float(self.getValue()) / self.preValue)
+        logger.info("Change provision(%s -> %s), threshold(%s -> %s)" % (self.preValue, self.getValue(), current, result))
+        return result
