@@ -21,7 +21,7 @@ def lambda_handler(event, context):
     message = Message(event['Records'][0]['Sns']['Message'])
     logger.info("Message: " + str(message))
 
-    def calcProvision():
+    def calc():
         RERIOD = timedelta(minutes=10)
         ave = Metrics(message).getAverage(RERIOD)
         if ave == None:
@@ -35,7 +35,7 @@ def lambda_handler(event, context):
         for key, rate in THRESHOLD_RATE.items():
             Alarm(message.makeAlarmName(key)).update(rate, provision)
 
-    update(calcProvision())
+    update(calc())
 
 class Message:
     def __init__(self, text):
@@ -137,13 +137,13 @@ class Table:
             }
             self.src.update(GlobalSecondaryIndexUpdates=[{'Update': update}])
 
-
 class Alarm:
     def __init__(self, name):
-        logger.info("Getting Alarm: " + name)
         self.name = name
         alarms = cloudwatch.describe_alarms(AlarmNames=[name])
-        self.src = alarms['MetricAlarms'][0]
+        self.src = next(iter(alarms['MetricAlarms']), None)
+        if self.src == None:
+            raise Exception("No alarm found: " + name)
 
     def update(self, rate, provision):
         period = self.src['Period']
@@ -151,7 +151,7 @@ class Alarm:
         if value <= 0.5:
             value = 0
         threshold = value * period
-        logger.info("Updating threshold %s: %s" % (self.name, threshold))
+        logger.info("Updating threshold %s: %s * %s = %s" % (self.name, value, period, threshold))
 
         cloudwatch.put_metric_alarm(
             AlarmName=self.src['AlarmName'],
