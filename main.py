@@ -13,27 +13,29 @@ logger.info("Version 1.1.1")
 
 cloudwatch = boto3.client('cloudwatch')
 
-surplusRate = 1.2
-thresholdRate = {'Upper': 0.8, 'Lower': 0.5}
-
-metricKeys = {
-    'ConsumedReadCapacityUnits': 'ReadCapacityUnits',
-    'ConsumedWriteCapacityUnits': 'WriteCapacityUnits'
-}
+SURPLUS_RATE = 1.2
+THRESHOLD_RATE = {'Upper': 0.8, 'Lower': 0.5}
 
 def lambda_handler(event, context):
     logger.info("Event: " + str(event))
     message = Message(event['Records'][0]['Sns']['Message'])
     logger.info("Message: " + str(message))
 
-    metrics = Metrics(message)
+    def calcProvision():
+        RERIOD = timedelta(minutes=10)
+        ave = Metrics(message).getAverage(RERIOD)
+        if ave == None:
+            ave = 0.1
+        return int(math.ceil(ave * SURPLUS_RATE))
 
-    provision = int(math.ceil(metrics.getAverage() * surplusRate))
+    def update(provision):
+        table = Table(message.getTableName(), message.getIndexName())
+        table.update(message.getMetricName(), provision)
 
-    Table(message.getTableName(), message.getIndexName()).update(metrics.key, provision)
+        for key, rate in THRESHOLD_RATE.items():
+            Alarm(message.makeAlarmName(key)).update(rate, provision)
 
-    for key, rate in thresholdRate:
-        Alarm(message.makeAlarmName(key)).update(rate, provision)
+    update(calcProvision())
 
 class Message:
     def __init__(self, text):
@@ -71,38 +73,35 @@ class Message:
 class Metrics:
     def __init__(self, message):
         self.message = message
-
-        endTime = datetime.now()
-        delta = timedelta(hours=1)
-        startTime = endTime - delta
-
         def fixDim(x):
             map = {}
             for key, value in x.items():
                 map[key.capitalize()] = value
             return map
+        self.dimensions = map(fixDim, message.getDimensions())
 
-        self.statistics = cloudwatch.get_metric_statistics(
+    def getValue(self, key, period):
+        endTime = datetime.now()
+        startTime = endTime - period
+
+        statistics = cloudwatch.get_metric_statistics(
             Namespace=self.message.getNamespace(),
             MetricName=self.message.getMetricName(),
-            Dimensions=map(fixDim, self.message.getDimensions()),
-            Statistics=['Average', 'Maximum'],
+            Dimensions=self.dimensions,
+            Statistics=[key],
             StartTime=startTime,
             EndTime=endTime,
-            Period=delta.seconds
+            Period=period.seconds
         )
 
-        self.key = metricKeys[message.getMetricName()]
+        logger.info("Current Metrics: " + str(statistics))
+        return next(iter(map(lambda x: x[key], statistics['Datapoints'])), None)
 
-    def getValue(self, key):
-        logger.info("Current Metrics: " + str(self.statistics))
-        return next(iter(map(lambda x: x[key], self.statistics['Datapoints'])), 0.1)
+    def getAverage(self, period):
+        return self.getValue('Average', period)
 
-    def getAverage(self):
-        return self.getValue('Average')
-
-    def getMaximum(self):
-        return self.getValue('Maximum')
+    def getMaximum(self, period):
+        return self.getValue('Maximum', period)
 
 class Table:
     def __init__(self, tableName, indexName):
@@ -110,7 +109,12 @@ class Table:
         self.indexName = indexName
         self.src = boto3.resource('dynamodb').Table(tableName)
 
-    def update(self, metricKey, provision):
+    def update(self, metricName, provision):
+        metricKeys = {
+            'ConsumedReadCapacityUnits': 'ReadCapacityUnits',
+            'ConsumedWriteCapacityUnits': 'WriteCapacityUnits'
+        }
+        metricKey = metricKeys[metricName]
         logger.info("Updating provision %s(%s) %s: %s" % (self.tableName, self.indexName, metricKey, provision))
 
         def updateThroughput(src):
@@ -136,14 +140,18 @@ class Table:
 
 class Alarm:
     def __init__(self, name):
+        logger.info("Getting Alarm: " + name)
         self.name = name
         alarms = cloudwatch.describe_alarms(AlarmNames=[name])
         self.src = alarms['MetricAlarms'][0]
 
     def update(self, rate, provision):
         period = self.src['Period']
-        value = provision * rate * period
-        logger.info("Updating threshold %s: %s" % (self.name, value))
+        value = provision * rate
+        if value <= 0.5:
+            value = 0
+        threshold = value * period
+        logger.info("Updating threshold %s: %s" % (self.name, threshold))
 
         cloudwatch.put_metric_alarm(
             AlarmName=self.src['AlarmName'],
@@ -158,5 +166,5 @@ class Alarm:
             Period=period,
             EvaluationPeriods=self.src['EvaluationPeriods'],
             ComparisonOperator=self.src['ComparisonOperator'],
-            Threshold=value
+            Threshold=threshold
         )
