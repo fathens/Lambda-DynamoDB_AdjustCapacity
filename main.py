@@ -82,7 +82,7 @@ class Metrics:
 
     def getValue(self, key, period):
         endTime = datetime.now()
-        startTime = endTime - period
+        startTime = endTime - period * 2
 
         statistics = cloudwatch.get_metric_statistics(
             Namespace=self.message.getNamespace(),
