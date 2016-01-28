@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-logger.info("Version 2.0.0")
+logger.info("Version 2.0.1")
 
 cloudwatch = boto3.client('cloudwatch')
 
