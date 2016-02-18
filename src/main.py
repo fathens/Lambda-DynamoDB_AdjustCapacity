@@ -1,10 +1,9 @@
 from __future__ import print_function
 
-import boto3
 import json
 import logging
 import math
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import dynamodb
 import cloudwatch
