@@ -9,17 +9,19 @@ METRIC_KEYS = {
     'ConsumedWriteCapacityUnits': 'WriteCapacityUnits'
 }
 
-THRESHOLD_RATE = {'Upper': 0.8, 'Lower': 0.5}
+def makeDimensions(tableName, indexName):
+    return [{'Name': 'TableName', 'Value': tableName},
+            {'Name': 'GlobalSecondaryIndexName', 'Value': indexName}]
 
 class Table:
-    def __init__(self, tableName, indexName):
-        self.tableName = tableName
-        self.indexName = indexName
-        self.src = boto3.resource('dynamodb').Table(tableName)
-
-    def makeAlarmName(self, metricName, key):
-        list = [self.tableName, self.indexName, metricName, key]
-        return "-".join(filter(lambda x: x != None, list)).replace('.', '-')
+    def __init__(self, dimensions):
+        self.dimensions = dimensions
+        def dim(key):
+            found = filter(lambda x: x['Name'] == key, dimensions)
+            return next(iter(map(lambda x: x['Value'], found)), None)
+        self.tableName = dim('TableName')
+        self.indexName = dim('GlobalSecondaryIndexName')
+        self.src = boto3.resource('dynamodb').Table(self.tableName)
 
     def update(self, metricName, provision):
         metricKey = METRIC_KEYS[metricName]

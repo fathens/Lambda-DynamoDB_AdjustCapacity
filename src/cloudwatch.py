@@ -8,26 +8,55 @@ logger.setLevel(logging.INFO)
 cloudwatch = boto3.client('cloudwatch')
 
 SURPLUS_RATE = 1.2
+THRESHOLD_RATE = {'Upper': 0.8, 'Lower': 0.5}
 
 class Alarm:
-    def __init__(self, name):
-        self.name = name
+    def __init__(self, dimensions, metricName, keyUL):
+        self.dimensions = dimensions
+        self.metricName = metricName
+        self.keyUL = keyUL
 
-    def create(self):
-        return
+    def getName(self):
+        list = map(lambda x: x['Value'], self.dimensions) + [self.metricName, self.keyUL]
+        return "-".join(filter(lambda x: x != None, list)).replace('.', '-')
+
+    def create(self, namespace, comparison, action):
+        period = 900
+        threshold = 720.0
+
+        cloudwatch.put_metric_alarm(
+            AlarmName=self.getName(),
+            ActionsEnabled=True,
+            MetricName=self.metricName,
+            Namespace=namespace,
+            Dimensions=self.dimensions,
+            Statistic='Sum',
+            OKActions=[],
+            AlarmActions=[action],
+            InsufficientDataActions=[],
+            Period=period,
+            EvaluationPeriods=1,
+            ComparisonOperator=comparison,
+            Threshold=threshold
+        )
+
+    def describe(self):
+        names = [self.getName()]
+        logger.info("Finding alarm: " + str(names))
+        alarms = cloudwatch.describe_alarms(AlarmNames=names)
+        return next(iter(alarms['MetricAlarms']), None)
 
     def update(self, rate, provision):
-        alarms = cloudwatch.describe_alarms(AlarmNames=[name])
-        alarm = next(iter(alarms['MetricAlarms']), None)
+        alarm = self.describe()
         if alarm == None:
-            raise Exception("No alarm found: " + name)
+            raise Exception("No alarm found: " + self.getName())
 
         period = alarm['Period']
         value = provision * rate
         if value <= 0.5:
             value = 0
         threshold = value * period
-        logger.info("Updating threshold %s: %s * %s = %s" % (self.name, value, period, threshold))
+        logger.info("Updating threshold %s: %s * %s = %s" % (self.getName(), value, period, threshold))
 
         cloudwatch.put_metric_alarm(
             AlarmName=alarm['AlarmName'],
