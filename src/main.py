@@ -10,7 +10,7 @@ import cloudwatch
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-logger.info("Version 2.0.1")
+logger.info("Version 3.0.0")
 
 def lambda_handler(event, context):
     logger.info("Event: " + str(event))
