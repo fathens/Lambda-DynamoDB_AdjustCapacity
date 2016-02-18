@@ -27,7 +27,7 @@ def lambda_handler(event, context):
     metric = cloudwatch.Metrics(dimensions, metricName)
     provision = metric.calcProvision()
 
-    table = dynamodb.Table(dimensions)
+    table = dynamodb.Table(metric.dimensions)
     table.update(metric.name, provision)
 
     for key in cloudwatch.BOUNDARIES.keys():
