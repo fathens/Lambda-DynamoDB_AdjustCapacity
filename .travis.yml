@@ -2,7 +2,7 @@ language: python
 branches:
   except:
     - /^[0-9]/
-    - /version/
+    - /^version\//
 
 env:
   global:
