@@ -12,7 +12,7 @@ install:
 
 script:
   - PRE=$(aws lambda get-alias --function-name $FUNC_NAME --name $ALIAS | ruby -e 'require "json"; puts JSON.load($stdin)["FunctionVersion"]')
-  - zip main.zip main.py
+  - (cd src; zip ../main.zip *.py)
   - aws lambda update-function-code --function-name $FUNC_NAME --zip-file fileb://main.zip --publish | tee result
   - VERSION=$(ruby -e 'require "json"; puts JSON.load(open("result"))["Version"]')
   - aws lambda update-alias --function-name $FUNC_NAME --name $ALIAS --function-version $VERSION
