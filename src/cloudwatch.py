@@ -12,13 +12,17 @@ SURPLUS_RATE = 1.2
 class Alarm:
     def __init__(self, name):
         self.name = name
-        alarms = cloudwatch.describe_alarms(AlarmNames=[name])
-        self.src = next(iter(alarms['MetricAlarms']), None)
-        if self.src == None:
-            raise Exception("No alarm found: " + name)
+
+    def create(self):
+        return
 
     def update(self, rate, provision):
-        period = self.src['Period']
+        alarms = cloudwatch.describe_alarms(AlarmNames=[name])
+        alarm = next(iter(alarms['MetricAlarms']), None)
+        if alarm == None:
+            raise Exception("No alarm found: " + name)
+
+        period = alarm['Period']
         value = provision * rate
         if value <= 0.5:
             value = 0
@@ -26,18 +30,18 @@ class Alarm:
         logger.info("Updating threshold %s: %s * %s = %s" % (self.name, value, period, threshold))
 
         cloudwatch.put_metric_alarm(
-            AlarmName=self.src['AlarmName'],
-            ActionsEnabled=self.src['ActionsEnabled'],
-            MetricName=self.src['MetricName'],
-            Namespace=self.src['Namespace'],
-            Dimensions=self.src['Dimensions'],
-            Statistic=self.src['Statistic'],
-            OKActions=self.src['OKActions'],
-            AlarmActions=self.src['AlarmActions'],
-            InsufficientDataActions=self.src['InsufficientDataActions'],
+            AlarmName=alarm['AlarmName'],
+            ActionsEnabled=alarm['ActionsEnabled'],
+            MetricName=alarm['MetricName'],
+            Namespace=alarm['Namespace'],
+            Dimensions=alarm['Dimensions'],
+            Statistic=alarm['Statistic'],
+            OKActions=alarm['OKActions'],
+            AlarmActions=alarm['AlarmActions'],
+            InsufficientDataActions=alarm['InsufficientDataActions'],
             Period=period,
-            EvaluationPeriods=self.src['EvaluationPeriods'],
-            ComparisonOperator=self.src['ComparisonOperator'],
+            EvaluationPeriods=alarm['EvaluationPeriods'],
+            ComparisonOperator=alarm['ComparisonOperator'],
             Threshold=threshold
         )
 
