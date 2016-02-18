@@ -36,7 +36,7 @@ class Alarm:
 
     def getName(self):
         list = map(lambda x: x['Value'], self.metric.dimensions) + [self.metric.name, self.keyUL]
-        return "-".join(list).replace('.', '-').replace('_', '-')
+        return "-".join(list)
 
     def getSNSName(self):
         tableName = filter(lambda x: x['Name'] == 'TableName', self.metric.dimensions)[0]['Value']
