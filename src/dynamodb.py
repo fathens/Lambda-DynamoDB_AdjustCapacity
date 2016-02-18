@@ -5,23 +5,30 @@ import logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+METRIC_KEYS = {
+    'ConsumedReadCapacityUnits': 'ReadCapacityUnits',
+    'ConsumedWriteCapacityUnits': 'WriteCapacityUnits'
+}
+
+THRESHOLD_RATE = {'Upper': 0.8, 'Lower': 0.5}
+
 class Table:
     def __init__(self, tableName, indexName):
         self.tableName = tableName
         self.indexName = indexName
         self.src = boto3.resource('dynamodb').Table(tableName)
 
+    def makeAlarmName(self, metricName, key):
+        list = [self.tableName, self.indexName, metricName, key]
+        return "-".join(filter(lambda x: x != None, list)).replace('.', '-')
+
     def update(self, metricName, provision):
-        metricKeys = {
-            'ConsumedReadCapacityUnits': 'ReadCapacityUnits',
-            'ConsumedWriteCapacityUnits': 'WriteCapacityUnits'
-        }
-        metricKey = metricKeys[metricName]
+        metricKey = METRIC_KEYS[metricName]
         logger.info("Updating provision %s(%s) %s: %s" % (self.tableName, self.indexName, metricKey, provision))
 
         def updateThroughput(src):
             map = {}
-            for name in metricKeys.values():
+            for name in METRIC_KEYS.values():
                 map[name] = src[name]
 
             map[metricKey] = provision

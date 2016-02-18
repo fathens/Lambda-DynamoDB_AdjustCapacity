@@ -7,6 +7,8 @@ logger.setLevel(logging.INFO)
 
 cloudwatch = boto3.client('cloudwatch')
 
+SURPLUS_RATE = 1.2
+
 class Alarm:
     def __init__(self, name):
         self.name = name
