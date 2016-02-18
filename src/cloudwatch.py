@@ -53,9 +53,6 @@ class Alarm:
 
     def update(self, provision):
         boundary = BOUNDARIES[self.keyUL]
-        alarm = self.describe()
-        if alarm == None:
-            logger.info("No alarm found, Creating...: " + self.getName())
 
         period = boundary['Period']
         value = provision * boundary['Threshold']

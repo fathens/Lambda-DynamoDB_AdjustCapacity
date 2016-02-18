@@ -43,8 +43,12 @@ if __name__ == "__main__":
     for table in ([base] + indexes):
         for metricName in dynamodb.METRIC_KEYS.keys():
             metric = cloudwatch.Metrics(table.dimensions, metricName)
-            for keyUL, boundary in cloudwatch.BOUNDARIES.items():
+            for keyUL in cloudwatch.BOUNDARIES.keys():
                 alarm = metric.alarm(keyUL)
+
+                desc = alarm.describe()
+                if desc == None:
+                    logger.info("No alarm found, Creating...: " + alarm.getName())
 
                 print("")
                 alarm.update(metric.calcProvision())
