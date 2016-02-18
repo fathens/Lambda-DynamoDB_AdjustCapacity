@@ -18,5 +18,5 @@ script:
   - VERSION=$(ruby -e 'require "json"; puts JSON.load(open("result"))["Version"]')
   - aws lambda update-alias --function-name $FUNC_NAME --name $ALIAS --function-version $VERSION
   - aws lambda update-alias --function-name $FUNC_NAME --name "${ALIAS}_pre" --function-version $PRE
-  - ruby -e "puts {'ref' => 'refs/tags/$VERSION', 'sha' => '$(git log HEAD -n1 --format=%H)'}.to_json" > gittag.json
+  - ruby -e "require 'json'; puts JSON.dump({:ref => 'refs/tags/$VERSION', :sha => '$(git log HEAD -n1 --format=%H)'})" > gittag.json
   - curl -v -X POST -H "Content-Type:application/json" https://api.github.com/repos/$TRAVIS_REPO_SLUG/git/refs -d @gittag.json
