@@ -1,9 +1,8 @@
 from __future__ import print_function
 
+import sys
 import json
 import logging
-import math
-from datetime import timedelta
 
 import dynamodb
 import cloudwatch
@@ -22,18 +21,33 @@ def lambda_handler(event, context):
     namespace = trigger['Namespace']
     dimensions = trigger['Dimensions']
 
-    def calc():
-        RERIOD = timedelta(minutes=10)
-        ave = cloudwatch.Metrics(namespace, metricName, dimensions).getAverage(RERIOD)
-        if ave == None:
-            ave = 0.1
-        return int(math.ceil(ave * cloudwatch.SURPLUS_RATE))
+    if namespace != cloudwatch.NAMESPACE:
+        raise Exception("Namespace is not match: " + namespace)
 
-    def update(provision):
-        table = dynamodb.Table(dimensions)
-        table.update(metricName, provision)
+    metric = cloudwatch.Metrics(dimensions, metricName)
+    provision = metric.calcProvision()
 
-        for key, rate in cloudwatch.THRESHOLD_RATE.items():
-            cloudwatch.Alarm(table.dimensions, metricName, key).update(rate, provision)
+    table = dynamodb.Table(dimensions)
+    table.update(metric.name, provision)
 
-    update(calc())
+    for key in cloudwatch.BOUNDARIES.keys():
+        metric.alarm(key).update(provision)
+
+if __name__ == "__main__":
+    logging.basicConfig()
+    tableName = sys.argv[1]
+
+    base = dynamodb.makeTable(tableName)
+    indexes = map(lambda x: dynamodb.makeTable(tableName, x['IndexName']), base.getIndexes())
+
+    for table in ([base] + indexes):
+        for metricName in dynamodb.METRIC_KEYS.keys():
+            metric = cloudwatch.Metrics(table.dimensions, metricName)
+            for keyUL, boundary in cloudwatch.BOUNDARIES.items():
+                alarm = metric.alarm(keyUL)
+
+                print("")
+                alarm.update(metric.calcProvision())
+
+                for key, value in alarm.describe().items():
+                    logger.info("Alarm: " + key + " => " + str(value))

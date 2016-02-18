@@ -9,9 +9,9 @@ METRIC_KEYS = {
     'ConsumedWriteCapacityUnits': 'WriteCapacityUnits'
 }
 
-def makeDimensions(tableName, indexName):
-    return [{'Name': 'TableName', 'Value': tableName},
-            {'Name': 'GlobalSecondaryIndexName', 'Value': indexName}]
+def makeTable(tableName, indexName=None):
+    dims = [{'Name': 'TableName', 'Value': tableName}, {'Name': 'GlobalSecondaryIndexName', 'Value': indexName}]
+    return Table(dims)
 
 class Table:
     def __init__(self, dimensions):
@@ -22,6 +22,9 @@ class Table:
         self.tableName = dim('TableName')
         self.indexName = dim('GlobalSecondaryIndexName')
         self.src = boto3.resource('dynamodb').Table(self.tableName)
+
+    def getIndexes(self):
+        return self.src.global_secondary_indexes
 
     def update(self, metricName, provision):
         metricKey = METRIC_KEYS[metricName]
