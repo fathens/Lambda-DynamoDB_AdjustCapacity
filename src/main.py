@@ -14,7 +14,7 @@ logger.info("Version 2.0.1")
 
 def lambda_handler(event, context):
     logger.info("Event: " + str(event))
-    trigger = json.loads(event['Records'][0]['Sns']['Message']['Trigger'])
+    trigger = json.loads(event['Records'][0]['Sns']['Message'])['Trigger']
     logger.info("Trigger: " + json.dumps(trigger, indent=4))
 
     metricName = trigger['MetricName']
